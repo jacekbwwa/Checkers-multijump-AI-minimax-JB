@@ -11,7 +11,7 @@ const PIECES = {
   WHITE_KING: "white-king"
 };
 
-const MAX_DEPTH = 4; 
+const MAX_DEPTH = 4;
 
 const initialBoard = [
   [null, PIECES.RED, null, PIECES.RED, null, PIECES.RED, null, PIECES.RED],
@@ -24,29 +24,34 @@ const initialBoard = [
   [PIECES.WHITE, null, PIECES.WHITE, null, PIECES.WHITE, null, PIECES.WHITE, null]
 ];
 
+
 let board = [];
 let currentPlayer = PIECES.WHITE;
 let selected = null;
 let highlightedSquares = [];
 let multiJumpInProgress = null;
+
 let capturedCount = { red: 0, white: 0 };
+
 const boardContainer = document.getElementById("board");
 const messageEl = document.getElementById("message");
 const resetBtn = document.getElementById("reset");
+
 const scoreboardEl = document.getElementById("scoreboard");
 
-const deepCloneBoard = board => board.map(row => [...row]);
-const isRed = piece => piece === PIECES.RED || piece === PIECES.RED_KING;
-const isWhite = piece => piece === PIECES.WHITE || piece === PIECES.WHITE_KING;
-const isKing = piece => piece === PIECES.RED_KING || piece === PIECES.WHITE_KING;
+
+const deepCloneBoard = (board) => board.map((row) => [...row]);
+
+const isRed = (piece) => piece === PIECES.RED || piece === PIECES.RED_KING;
+const isWhite = (piece) => piece === PIECES.WHITE || piece === PIECES.WHITE_KING;
+const isKing = (piece) => piece === PIECES.RED_KING || piece === PIECES.WHITE_KING;
 
 const isOpponent = (p1, p2) => {
   if (!p1 || !p2) return false;
   return (isRed(p1) && isWhite(p2)) || (isWhite(p1) && isRed(p2));
 };
 
-const isInBounds = (row, col) =>
-  row >= 0 && row < boardSize && col >= 0 && col < boardSize;
+const isInBounds = (row, col) => row >= 0 && row < boardSize && col >= 0 && col < boardSize;
 
 const clearHighlight = () => {
   highlightedSquares.forEach(({ row, col }) => {
@@ -63,8 +68,19 @@ const highlightSquare = (row, col) => {
   highlightedSquares.push({ row, col });
 };
 
-const squareAt = (row, col) =>
-  boardContainer.querySelector(`.square[data-row="${row}"][data-col="${col}"]`);
+const squareAt = (row, col) => boardContainer.querySelector(`.square[data-row="${row}"][data-col="${col}"]`);
+
+
+const addAriaToSquares = () => {
+  const squares = boardContainer.querySelectorAll(".square");
+  squares.forEach((square) => {
+    square.setAttribute("role", "gridcell");
+    square.setAttribute(
+      "aria-label",
+      `Square row ${parseInt(square.dataset.row) + 1} column ${parseInt(square.dataset.col) + 1}`
+    );
+  });
+};
 
 const init = () => {
   board = deepCloneBoard(initialBoard);
@@ -75,15 +91,18 @@ const init = () => {
   renderBoard();
   updateMessage();
   clearHighlight();
+
   updateScoreboard();
+
   if (currentPlayer === PIECES.RED) {
     setTimeout(aiMove, 300);
   }
 };
 
+
 const renderBoard = () => {
   boardContainer.innerHTML = "";
-  boardContainer.style.gridTemplateColumns = `repeat(${boardSize}, 70px)`;
+  boardContainer.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
   for (let r = 0; r < boardSize; r++) {
     for (let c = 0; c < boardSize; c++) {
       const square = document.createElement("div");
@@ -98,26 +117,45 @@ const renderBoard = () => {
           square.addEventListener("click", onSquareClick);
         }
       }
+
       const piece = board[r][c];
       if (piece) {
         const pieceEl = document.createElement("div");
         pieceEl.classList.add("piece");
         if (piece === PIECES.RED || piece === PIECES.RED_KING) pieceEl.classList.add("red");
         else pieceEl.classList.add("white-piece");
+
         if (isKing(piece)) pieceEl.classList.add("king");
+
         if (currentPlayer === PIECES.WHITE) {
-          pieceEl.addEventListener("click", onPieceClick);
-        }
+        pieceEl.addEventListener("click", onPieceClick);
+        pieceEl.tabIndex = 0; 
+        pieceEl.setAttribute("role", "button");
+        pieceEl.setAttribute(
+          "aria-label",
+          `${isRed(piece) ? "Red" : "White"}${isKing(piece) ? " king" : ""} piece at row ${r + 1} column ${c + 1}`
+        );
+        pieceEl.addEventListener("keydown", (e) => {
+
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onPieceClick(e);
+          }
+        });
+           }
         square.appendChild(pieceEl);
       }
+
       boardContainer.appendChild(square);
     }
   }
+  addAriaToSquares();
 };
 
-const onPieceClick = evt => {
+
+const onPieceClick = (evt) => {
   evt.stopPropagation();
-  if (currentPlayer === PIECES.RED) return;
+  if (currentPlayer === PIECES.RED) return; 
   const sq = evt.target.parentElement;
   const row = Number(sq.dataset.row);
   const col = Number(sq.dataset.col);
@@ -126,7 +164,7 @@ const onPieceClick = evt => {
   }
 };
 
-const onSquareClick = evt => {
+const onSquareClick = (evt) => {
   if (currentPlayer === PIECES.RED) return; 
   const sq = evt.currentTarget;
   const row = Number(sq.dataset.row);
@@ -139,40 +177,53 @@ const isCurrentPlayerPiece = (row, col) => {
   return currentPlayer === PIECES.RED ? isRed(p) : isWhite(p);
 };
 
-
 const selectPiece = (row, col) => {
   clearHighlight();
   selected = { row, col };
   highlightMoves(row, col);
 };
 
+
 const moveSelectedPiece = (toRow, toCol) => {
   if (!selected) return;
-  if (!highlightedSquares.some(sq => sq.row === toRow && sq.col === toCol)) return;
+  if (!highlightedSquares.some((sq) => sq.row === toRow && sq.col === toCol)) return;
+
   const fromRow = selected.row;
   const fromCol = selected.col;
   const piece = board[fromRow][fromCol];
+
+
   const jumpPath = getJumpPath(fromRow, fromCol, toRow, toCol, piece);
+
   if (!jumpPath) {
+
     board[toRow][toCol] = piece;
     board[fromRow][fromCol] = null;
     maybeCrownKing(toRow, toCol);
+
     selected = null;
     multiJumpInProgress = null;
     clearHighlight();
     swapPlayerAndRender();
     return;
   }
+
+
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = null;
-  jumpPath.forEach(pos => {
+
+  jumpPath.forEach((pos) => {
     board[pos.row][pos.col] = null;
     if (isRed(piece)) capturedCount.white++;
     else if (isWhite(piece)) capturedCount.red++;
   });
   maybeCrownKing(toRow, toCol);
+
+
   const jumpedPositionsSet = multiJumpInProgress ? new Set(multiJumpInProgress.jumpedPositions) : new Set();
-  jumpPath.forEach(jp => jumpedPositionsSet.add(`${jp.row},${jp.col}`));
+
+  jumpPath.forEach((jp) => jumpedPositionsSet.add(`${jp.row},${jp.col}`));
+
   selected = { row: toRow, col: toCol };
   multiJumpInProgress = {
     row: toRow,
@@ -180,12 +231,18 @@ const moveSelectedPiece = (toRow, toCol) => {
     piece,
     jumpedPositions: jumpedPositionsSet
   };
+
   clearHighlight();
+
+
   const furtherJumps = isKing(piece)
     ? findKingJumpsMulti(board, toRow, toCol, piece, jumpedPositionsSet)
     : findPossibleJumps(toRow, toCol, piece, jumpedPositionsSet);
+
   if (furtherJumps.length > 0) highlightMultiJumpPaths(furtherJumps);
+
   else {
+
     multiJumpInProgress = null;
     selected = null;
     updateScoreboard();
@@ -193,9 +250,10 @@ const moveSelectedPiece = (toRow, toCol) => {
   }
 };
 
-const highlightMultiJumpPaths = jumpMoves => {
+
+const highlightMultiJumpPaths = (jumpMoves) => {
   clearHighlight();
-  jumpMoves.forEach(jump => highlightSquare(jump.to.row, jump.to.col));
+  jumpMoves.forEach((jump) => highlightSquare(jump.to.row, jump.to.col));
 };
 
 const swapPlayerAndRender = () => {
@@ -204,7 +262,9 @@ const swapPlayerAndRender = () => {
   updateMessage();
   clearHighlight();
   selected = null;
+
   updateScoreboard();
+
   if (currentPlayer === PIECES.RED) {
     setTimeout(aiMove, 300);
   }
@@ -228,20 +288,35 @@ const maybeCrownKing = (row, col) => {
   }
 };
 
+
+
 const findPossibleJumps = (row, col, piece, jumpedPositions) => {
   const jumps = [];
   const directions = isKing(piece)
-    ? [[-1,-1], [-1,1], [1,-1], [1,1]]
+    ? [
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1]
+      ]
     : isRed(piece)
-      ? [[1,-1],[1,1]]
-      : [[-1,-1],[-1,1]];
+      ? [
+          [1, -1],
+          [1, 1]
+        ]
+      : [
+          [-1, -1],
+          [-1, 1]
+        ];
 
   for (const [dr, dc] of directions) {
     const midRow = parseInt(row) + parseInt(dr);
     const midCol = parseInt(col) + parseInt(dc);
     const jumpRow = parseInt(row) + parseInt(dr) * 2;
     const jumpCol = parseInt(col) + parseInt(dc) * 2;
+
     if (!isInBounds(jumpRow, jumpCol)) continue;
+
     const midPiece = board[midRow]?.[midCol];
     if (
       midPiece &&
@@ -256,17 +331,29 @@ const findPossibleJumps = (row, col, piece, jumpedPositions) => {
       });
     }
   }
+
   return jumps;
 };
 
+
 const findKingJumpsMulti = (boardState, row, col, piece, jumpedPositions = new Set(), origin = null) => {
   const results = [];
-  const directions = [[1,1], [1,-1], [-1,-1], [-1,1]];
-  origin ??= {row, col};
+
+  const directions = [
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+    [-1, 1]
+  ];
+
+  origin ??= { row, col };
+
+
   for (const [dr, dc] of directions) {
     let r = parseInt(row) + parseInt(dr);
     let c = parseInt(col) + parseInt(dc);
     let opponentFound = null;
+
     while (isInBounds(r, c)) {
       if (boardState[r][c] === null) {
         r = parseInt(r) + parseInt(dr);
@@ -274,33 +361,32 @@ const findKingJumpsMulti = (boardState, row, col, piece, jumpedPositions = new S
         continue;
       }
       if (isOpponent(piece, boardState[r][c]) && !jumpedPositions.has(`${r},${c}`) && !opponentFound) {
-        opponentFound = {row: r, col: c};
-       r = parseInt(r) + parseInt(dr);
-       c = parseInt(c) + parseInt(dc);
+        opponentFound = { row: r, col: c };
+        r = parseInt(r) + parseInt(dr);
+        c = parseInt(c) + parseInt(dc);
+
         while (isInBounds(r, c) && boardState[r][c] === null) {
+
           const newJumped = new Set(jumpedPositions);
           newJumped.add(`${opponentFound.row},${opponentFound.col}`);
-          const furtherJumps = findKingJumpsMulti(
-            boardState,
-            r,
-            c,
-            piece,
-            newJumped,
-            origin
-          );
+
+
+          const furtherJumps = findKingJumpsMulti(boardState, r, c, piece, newJumped, origin);
           if (furtherJumps.length > 0) {
+
             for (const fjump of furtherJumps) {
               results.push({
-                from: {row: origin.row, col: origin.col},
+                from: { row: origin.row, col: origin.col },
                 to: fjump.to,
-                jumped: [{row: opponentFound.row, col: opponentFound.col}, ...fjump.jumped]
+                jumped: [{ row: opponentFound.row, col: opponentFound.col }, ...fjump.jumped]
               });
             }
           } else {
+
             results.push({
-              from: {row: origin.row, col: origin.col},
-              to: {row: r, col: c},
-              jumped: [{row: opponentFound.row, col: opponentFound.col}]
+              from: { row: origin.row, col: origin.col },
+              to: { row: r, col: c },
+              jumped: [{ row: opponentFound.row, col: opponentFound.col }]
             });
           }
           r = parseInt(r) + parseInt(dr);
@@ -308,7 +394,7 @@ const findKingJumpsMulti = (boardState, row, col, piece, jumpedPositions = new S
         }
         break; 
       } else {
-        break; 
+        break;
       }
     }
   }
@@ -316,13 +402,19 @@ const findKingJumpsMulti = (boardState, row, col, piece, jumpedPositions = new S
 };
 
 const findStraightLineMoves = (row, col, piece) => {
-  const directions = [[1,1], [1,-1], [-1,-1], [-1,1]];
+  const directions = [
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+    [-1, 1]
+  ];
+
   const moves = [];
   for (const [dr, dc] of directions) {
     let r = parseInt(row) + parseInt(dr);
     let c = parseInt(col) + parseInt(dc);
     while (isInBounds(r, c) && !board[r][c]) {
-      moves.push({row: r, col: c});
+      moves.push({ row: r, col: c });
       r = parseInt(r) + parseInt(dr);
       c = parseInt(c) + parseInt(dc);
     }
@@ -339,62 +431,74 @@ const highlightMoves = (row, col) => {
   }
   const jumpPaths = findKingJumpsMulti(board, row, col, piece, new Set());
   if (!jumpPaths.length) {
-    findStraightLineMoves(row, col, piece).forEach(({row, col}) => highlightSquare(row, col));
+    findStraightLineMoves(row, col, piece).forEach(({ row, col }) => highlightSquare(row, col));
   } else {
-    jumpPaths.forEach(jump => highlightSquare(jump.to.row, jump.to.col));
+    jumpPaths.forEach((jump) => highlightSquare(jump.to.row, jump.to.col));
   }
 };
 
 const highlightSimpleMoves = (row, col, piece) => {
   const directions = isRed(piece)
-    ? [[1,-1],[1,1]]
-    : [[-1,-1],[-1,1]];
+    ? [
+        [1, -1],
+        [1, 1]
+      ]
+    : [
+        [-1, -1],
+        [-1, 1]
+      ];
   const moves = [];
   const jumps = [];
+
   for (const [dr, dc] of directions) {
     const nr = parseInt(row) + parseInt(dr);
     const nc = parseInt(col) + parseInt(dc);
+
     if (isInBounds(nr, nc) && !board[nr][nc]) {
-      moves.push({row: nr, col: nc});
+      moves.push({ row: nr, col: nc });
     }
 
     const jr = parseInt(row) + 2 * parseInt(dr);
     const jc = parseInt(col) + 2 * parseInt(dc);
-    if (
-      isInBounds(jr, jc) &&
-      !board[jr][jc] &&
-      board[nr][nc] &&
-      isOpponent(board[nr][nc], piece)
-    ) {
-      jumps.push({row: jr, col: jc});
+    if (isInBounds(jr, jc) && !board[jr][jc] && board[nr][nc] && isOpponent(board[nr][nc], piece)) {
+      jumps.push({ row: jr, col: jc });
     }
   }
   const toHighlight = jumps.length ? jumps : moves;
-  toHighlight.forEach(({row, col}) => highlightSquare(row, col));
+  toHighlight.forEach(({ row, col }) => highlightSquare(row, col));
 };
 
 const getJumpPath = (fr, fc, tr, tc, piece) => {
   const rowDiff = parseInt(tr) - parseInt(fr);
   const colDiff = parseInt(tc) - parseInt(fc);
+
   if (Math.abs(rowDiff) <= 1 && Math.abs(colDiff) <= 1) return null;
+
   if (!isKing(piece)) {
     if (Math.abs(rowDiff) !== 2 || Math.abs(colDiff) !== 2) return null;
     const jumpedRow = parseInt(fr) + parseInt(rowDiff) / 2;
     const jumpedCol = parseInt(fc) + parseInt(colDiff) / 2;
+
     if (board[jumpedRow][jumpedCol] && isOpponent(board[jumpedRow][jumpedCol], piece)) {
-      return [{row: jumpedRow, col: jumpedCol}];
+      return [{ row: jumpedRow, col: jumpedCol }];
     }
     return null;
   }
+
+
   let dr = rowDiff > 0 ? 1 : -1;
   let dc = colDiff > 0 ? 1 : -1;
   let r = parseInt(fr) + parseInt(dr);
   let c = parseInt(fc) + parseInt(dc);
+
   const jumped = [];
+
   while (r !== tr && c !== tc) {
     if (board[r][c]) {
       if (isOpponent(board[r][c], piece)) {
-        jumped.push({row: r, col: c});
+
+        jumped.push({ row: r, col: c });
+
       } else {
         return null;
       }
@@ -402,21 +506,28 @@ const getJumpPath = (fr, fc, tr, tc, piece) => {
     r = parseInt(r) + parseInt(dr);
     c = parseInt(c) + parseInt(dc);
   }
+
   return jumped.length === 1 ? jumped : null;
 };
+
+
 
 const performMove = (move, player) => {
   if (!move) return;
   board = applyMultiJumpMove(board, move);
   maybeCrownKing(move.to.row, move.to.col);
+
   swapPlayerAndRender();
 };
 
+
 const aiMove = () => {
   const aiPlayer = PIECES.RED;
+
   const best = minimaxRoot(board, MAX_DEPTH, aiPlayer);
   if (!best) {
     messageEl.innerText = "White wins! (AI has no moves)";
+
     return;
   }
   if (best.jumped && best.jumped.length > 0) {
@@ -425,20 +536,23 @@ const aiMove = () => {
     }
   }
   performMove(best, aiPlayer);
+
   updateMessage();
   renderBoard();
   checkGameOver();
 };
+
 
 const minimaxRoot = (boardState, depth, aiPlayer) => {
   const moves = generateAllMovesMultiJump(boardState, aiPlayer);
   if (!moves.length) return null;
   let bestScore = -Infinity;
   let bestMove = null;
+
   for (const move of moves) {
     const newBoard = applyMultiJumpMove(boardState, move);
     const score = minimax(newBoard, parseInt(depth) - 1, -Infinity, Infinity, false);
-    if(score > bestScore){
+    if (score > bestScore) {
       bestScore = score;
       bestMove = move;
     }
@@ -447,10 +561,11 @@ const minimaxRoot = (boardState, depth, aiPlayer) => {
 };
 
 const minimax = (boardState, depth, alpha, beta, maximizingPlayer) => {
-  if(depth === 0) return evaluateBoard(boardState);
+  if (depth === 0) return evaluateBoard(boardState);
   const player = maximizingPlayer ? PIECES.RED : PIECES.WHITE;
   const moves = generateAllMovesMultiJump(boardState, player);
   if (!moves.length) return maximizingPlayer ? -Infinity : Infinity;
+
   if (maximizingPlayer) {
     let maxEval = -Infinity;
     for (const move of moves) {
@@ -458,7 +573,7 @@ const minimax = (boardState, depth, alpha, beta, maximizingPlayer) => {
       const evalScore = minimax(newBoard, parseInt(depth) - 1, alpha, beta, false);
       maxEval = Math.max(maxEval, evalScore);
       alpha = Math.max(alpha, evalScore);
-      if(beta <= alpha) break;
+      if (beta <= alpha) break;
     }
     return maxEval;
   } else {
@@ -468,22 +583,22 @@ const minimax = (boardState, depth, alpha, beta, maximizingPlayer) => {
       const evalScore = minimax(newBoard, parseInt(depth) - 1, alpha, beta, true);
       minEval = Math.min(minEval, evalScore);
       beta = Math.min(beta, evalScore);
-      if(beta <= alpha) break;
+      if (beta <= alpha) break;
     }
     return minEval;
   }
 };
 
-const evaluateBoard = boardState => {
+const evaluateBoard = (boardState) => {
   let score = 0;
-  for(let r=0; r<boardSize; r++){
-    for(let c=0; c<boardSize; c++){
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
       const p = boardState[r][c];
-      if(!p) continue;
-      if(p === PIECES.WHITE) score -= 1;
-      else if(p === PIECES.WHITE_KING) score -= 1.5;
-      else if(p === PIECES.RED) score += 1;
-      else if(p === PIECES.RED_KING) score += 1.5;
+      if (!p) continue;
+      if (p === PIECES.WHITE) score -= 1;
+      else if (p === PIECES.WHITE_KING) score -= 1.5;
+      else if (p === PIECES.RED) score += 1;
+      else if (p === PIECES.RED_KING) score += 1.5;
     }
   }
   return score;
@@ -492,22 +607,24 @@ const evaluateBoard = boardState => {
 const generateAllMovesMultiJump = (boardState, player) => {
   let allMoves = [];
   let jumpMoves = [];
-  for(let r=0; r<boardSize; r++){
-    for(let c=0; c<boardSize; c++){
+
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
       const piece = boardState[r][c];
-      if(!piece) continue;
-      if((player === PIECES.RED && isRed(piece)) || (player === PIECES.WHITE && isWhite(piece))){
+      if (!piece) continue;
+      if ((player === PIECES.RED && isRed(piece)) || (player === PIECES.WHITE && isWhite(piece))) {
         const jumps = getAllMultiJumpChains(boardState, r, c, piece);
-        if(jumps.length) jumpMoves.push(...jumps);
+        if (jumps.length) jumpMoves.push(...jumps);
       }
     }
   }
-  if(jumpMoves.length) return jumpMoves;
-  for(let r=0; r<boardSize; r++){
-    for(let c=0; c<boardSize; c++){
+  if (jumpMoves.length) return jumpMoves;
+
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
       const piece = boardState[r][c];
-      if(!piece) continue;
-      if((player === PIECES.RED && isRed(piece)) || (player === PIECES.WHITE && isWhite(piece))){
+      if (!piece) continue;
+      if ((player === PIECES.RED && isRed(piece)) || (player === PIECES.WHITE && isWhite(piece))) {
         const moves = findSimpleMovesOnBoard(boardState, r, c, piece);
         allMoves.push(...moves);
       }
@@ -521,16 +638,21 @@ const getAllMultiJumpChains = (boardState, row, col, piece) => {
     const jumps = isKing(piece)
       ? findKingJumpsMulti(currentBoard, r, c, piece, jumpedSet)
       : findPossibleJumpsOnBoardWithJumped(currentBoard, r, c, piece, jumpedSet);
-    if(!jumps.length  && ((row!== r) && (col!== c))) return [{
-      from: {row: row, col: col},
-      to: {row: r, col: c},
-      jumped: [...pathJumpedPositions]
-    }];
+
+    if (!jumps.length && row !== r && col !== c)
+      return [
+        {
+          from: { row: row, col: col },
+          to: { row: r, col: c },
+          jumped: [...pathJumpedPositions]
+        }
+      ];
+
     const allChains = [];
-    for(const jump of jumps){
+    for (const jump of jumps) {
       const tempBoard = applyMultiJumpMove(currentBoard, jump);
       const newJumpedSet = new Set(jumpedSet);
-      jump.jumped.forEach(pos => newJumpedSet.add(`${pos.row},${pos.col}`));
+      jump.jumped.forEach((pos) => newJumpedSet.add(`${pos.row},${pos.col}`));
       const newJumpedPositions = pathJumpedPositions.concat(jump.jumped);
       const chains = recurse(tempBoard, jump.to.row, jump.to.col, newJumpedSet, newJumpedPositions);
       allChains.push(...chains);
@@ -543,16 +665,27 @@ const getAllMultiJumpChains = (boardState, row, col, piece) => {
 const findPossibleJumpsOnBoardWithJumped = (boardState, row, col, piece, jumpedPositions) => {
   const jumps = [];
   const directions = isKing(piece)
-    ? [[-1,-1], [-1,1], [1,-1], [1,1]]
+    ? [
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1]
+      ]
     : isRed(piece)
-      ? [[1,-1],[1,1]]
-      : [[-1,-1],[-1,1]];
-  for(const [dr, dc] of directions){
+      ? [
+          [1, -1],
+          [1, 1]
+        ]
+      : [
+          [-1, -1],
+          [-1, 1]
+        ];
+  for (const [dr, dc] of directions) {
     const midRow = parseInt(row) + parseInt(dr);
     const midCol = parseInt(col) + parseInt(dc);
-    const jumpRow = parseInt(row) + 2*parseInt(dr);
-    const jumpCol = parseInt(col) + 2*parseInt(dc);
-    if(!isInBounds(jumpRow,jumpCol)) continue;
+    const jumpRow = parseInt(row) + 2 * parseInt(dr);
+    const jumpCol = parseInt(col) + 2 * parseInt(dc);
+    if (!isInBounds(jumpRow, jumpCol)) continue;
     const midPiece = boardState[midRow]?.[midCol];
     if (
       midPiece &&
@@ -561,9 +694,9 @@ const findPossibleJumpsOnBoardWithJumped = (boardState, row, col, piece, jumpedP
       boardState[jumpRow][jumpCol] === null
     ) {
       jumps.push({
-        from: {row, col},
-        to: {row: jumpRow, col: jumpCol},
-        jumped: [{row: midRow, col: midCol}]
+        from: { row, col },
+        to: { row: jumpRow, col: jumpCol },
+        jumped: [{ row: midRow, col: midCol }]
       });
     }
   }
@@ -573,15 +706,26 @@ const findPossibleJumpsOnBoardWithJumped = (boardState, row, col, piece, jumpedP
 const findSimpleMovesOnBoard = (boardState, row, col, piece) => {
   const moves = [];
   const directions = isKing(piece)
-    ? [[-1,-1], [-1,1], [1,-1], [1,1]]
+    ? [
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1]
+      ]
     : isRed(piece)
-      ? [[1,-1],[1,1]]
-      : [[-1,-1],[-1,1]];
-  for(const [dr, dc] of directions){
+      ? [
+          [1, -1],
+          [1, 1]
+        ]
+      : [
+          [-1, -1],
+          [-1, 1]
+        ];
+  for (const [dr, dc] of directions) {
     const nr = parseInt(row) + parseInt(dr);
     const nc = parseInt(col) + parseInt(dc);
     if (isInBounds(nr, nc) && boardState[nr][nc] === null) {
-      moves.push({from: {row, col}, to: {row: nr, col: nc}, jumped: []});
+      moves.push({ from: { row, col }, to: { row: nr, col: nc }, jumped: [] });
     }
   }
   return moves;
@@ -592,12 +736,12 @@ const applyMultiJumpMove = (boardState, move) => {
   const piece = newBoard[move.from.row][move.from.col];
   newBoard[move.from.row][move.from.col] = null;
   newBoard[move.to.row][move.to.col] = piece;
-  if(move.jumped?.length) move.jumped.forEach(({row, col}) => newBoard[row][col] = null);
+  if (move.jumped?.length) move.jumped.forEach(({ row, col }) => (newBoard[row][col] = null));
   crownIfNeeded(newBoard, move.to.row, move.to.col, piece);
   return newBoard;
 };
 
-const crownIfNeeded = (boardState, row, col, piece)  => {
+const crownIfNeeded = (boardState, row, col, piece) => {
   if (isRed(piece) && row === parseInt(boardSize) - 1) {
     boardState[row][col] = PIECES.RED_KING;
   }
@@ -606,19 +750,22 @@ const crownIfNeeded = (boardState, row, col, piece)  => {
   }
 };
 
+
 const checkGameOver = () => {
-  const redPieces = board.flat().some(p => isRed(p) || p === PIECES.RED_KING);
-  const whitePieces = board.flat().some(p => isWhite(p) || p === PIECES.WHITE_KING);
-  if(!redPieces){
+  const redPieces = board.flat().some((p) => isRed(p) || p === PIECES.RED_KING);
+  const whitePieces = board.flat().some((p) => isWhite(p) || p === PIECES.WHITE_KING);
+  if (!redPieces) {
     messageEl.innerText = "White wins!";
+
     return true;
   }
-  if(!whitePieces){
+  if (!whitePieces) {
     messageEl.innerText = "Red wins!";
     return true;
   }
   return false;
 };
+
 
 resetBtn.addEventListener("click", () => {
   selected = null;
